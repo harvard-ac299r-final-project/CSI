@@ -22,7 +22,7 @@ device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
 
 ### Initialize dataset ###
 ood_eval = P.mode == 'ood_pre'
-if P.dataset == 'imagenet' and ood_eval:
+if (P.dataset in ['imagenet', 'bollworms-id']) and ood_eval:
     P.batch_size = 1
     P.test_batch_size = 1
 train_set, test_set, image_size, n_classes = get_dataset(P, dataset=P.dataset, eval=ood_eval)
@@ -51,6 +51,8 @@ if P.ood_dataset is None:
         P.ood_dataset = ['svhn', 'lsun_resize', 'imagenet_resize', 'lsun_fix', 'imagenet_fix', 'cifar100', 'interp']
     elif P.dataset == 'imagenet':
         P.ood_dataset = ['cub', 'stanford_dogs', 'flowers102', 'places365', 'food_101', 'caltech_256', 'dtd', 'pets']
+    elif P.dataset == 'bollworms-id':
+        P.ood_dataset = ['bollworms-ood', 'stanford_dogs', 'flowers102']
 
 ood_test_loader = dict()
 for ood in P.ood_dataset:

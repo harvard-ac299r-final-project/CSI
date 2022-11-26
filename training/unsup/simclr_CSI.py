@@ -39,7 +39,7 @@ def train(P, epoch, model, criterion, optimizer, scheduler, loader, logger=None,
         check = time.time()
 
         ### SimCLR loss ###
-        if P.dataset != 'imagenet':
+        if P.dataset not in ['imagenet', 'bollworms-id']:
             batch_size = images.size(0)
             images = images.to(device)
             images1, images2 = hflip(images.repeat(2, 1, 1, 1)).chunk(2)  # hflip

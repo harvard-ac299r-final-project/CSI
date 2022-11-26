@@ -7,9 +7,8 @@ from torchvision import datasets, transforms
 
 from utils.utils import set_random_seed
 
-DATA_PATH = '~/data/'
-IMAGENET_PATH = '~/data/ImageNet'
-
+DATA_PATH = 'data/'
+IMAGENET_PATH = 'data/ImageNet'
 
 CIFAR10_SUPERCLASS = list(range(10))  # one class
 IMAGENET_SUPERCLASS = list(range(30))  # one class
@@ -102,7 +101,6 @@ def get_subset_with_len(dataset, length, shuffle=False):
 
     return subset
 
-
 def get_transform_imagenet():
 
     train_transform = transforms.Compose([
@@ -122,14 +120,18 @@ def get_transform_imagenet():
     return train_transform, test_transform
 
 
-def get_dataset(P, dataset, test_only=False, image_size=None, download=False, eval=False):
+def get_dataset(P, dataset, test_only=False, image_size=None, download=True, eval=False):
     if dataset in ['imagenet', 'cub', 'stanford_dogs', 'flowers102',
-                   'places365', 'food_101', 'caltech_256', 'dtd', 'pets']:
+                   'places365', 'food_101', 'caltech_256', 'dtd']:
         if eval:
             train_transform, test_transform = get_simclr_eval_transform_imagenet(P.ood_samples,
                                                                                  P.resize_factor, P.resize_fix)
         else:
             train_transform, test_transform = get_transform_imagenet()
+
+    elif dataset in ['bollworms-id']:
+        train_transform, test_transform = get_transform_imagenet()
+
     else:
         train_transform, test_transform = get_transform(image_size=image_size)
 
@@ -224,6 +226,35 @@ def get_dataset(P, dataset, test_only=False, image_size=None, download=False, ev
         test_dir = os.path.join(DATA_PATH, 'pets')
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
         test_set = get_subset_with_len(test_set, length=3000, shuffle=True)
+
+    elif dataset == 'bollworms-id':
+        image_size = (256, 256, 3)
+        n_classes = 1
+
+        train_dir = os.path.join(DATA_PATH, 'bollworms-id')
+        train_set = datasets.ImageFolder(train_dir, transform=train_transform)
+        test_dir = os.path.join(DATA_PATH, 'bollworms-id')
+        test_set = datasets.ImageFolder(test_dir, transform=test_transform)
+
+        set_random_seed(0)
+
+        dataset_size = len(train_set)
+        index = np.arange(dataset_size)
+        np.random.shuffle(index)
+
+        train_size = int(0.9*dataset_size)
+        train_index = torch.from_numpy(index[0:train_size])
+        test_index = torch.from_numpy(index[train_size:])
+
+        train_set = Subset(train_set, train_index)
+        test_set = Subset(test_set, test_index)
+        print(f'Bollworms ID: Train={len(train_set)}, Test={len(test_set)}')
+
+    elif dataset == 'bollworms-ood':
+        assert test_only and image_size is not None
+        test_dir = os.path.join(DATA_PATH, 'bollworms-ood')
+        test_set = datasets.ImageFolder(test_dir, transform=test_transform)
+
 
     else:
         raise NotImplementedError()
