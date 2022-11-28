@@ -122,15 +122,16 @@ def get_transform_imagenet():
 
 def get_dataset(P, dataset, test_only=False, image_size=None, download=True, eval=False):
     if dataset in ['imagenet', 'cub', 'stanford_dogs', 'flowers102',
-                   'places365', 'food_101', 'caltech_256', 'dtd']:
+                   'places365', 'food_101', 'caltech_256', 'dtd', 
+                   'bollworms-id', 'bollworms-ec', 'bollworms-ood']:
         if eval:
             train_transform, test_transform = get_simclr_eval_transform_imagenet(P.ood_samples,
                                                                                  P.resize_factor, P.resize_fix)
         else:
             train_transform, test_transform = get_transform_imagenet()
 
-    elif dataset in ['bollworms-id']:
-        train_transform, test_transform = get_transform_imagenet()
+#    elif dataset in ['bollworms-id', 'bollworms-ec', 'bollworms-ood']:
+#        train_transform, test_transform = get_transform_imagenet()
 
     else:
         train_transform, test_transform = get_transform(image_size=image_size)
@@ -254,6 +255,7 @@ def get_dataset(P, dataset, test_only=False, image_size=None, download=True, eva
         assert test_only and image_size is not None
         test_dir = os.path.join(DATA_PATH, 'bollworms-ood')
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
+        print(f'Bollworms OOD: Test={len(test_set)}')
 
 
     else:

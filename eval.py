@@ -19,7 +19,7 @@ elif P.mode in ['ood', 'ood_pre']:
         from evals.ood_pre import eval_ood_detection
 
     with torch.no_grad():
-        auroc_dict = eval_ood_detection(P, model, test_loader, ood_test_loader, P.ood_score,
+        auroc_dict, acc_dict, report_dict = eval_ood_detection(P, model, test_loader, ood_test_loader, P.ood_score,
                                         train_loader=train_loader, simclr_aug=simclr_aug)
 
     if P.one_class_idx is not None:
@@ -46,6 +46,21 @@ elif P.mode in ['ood', 'ood_pre']:
 
     bests = map('{:.4f}'.format, bests)
     print('\t'.join(bests))
+
+    print('')
+    for ood in acc_dict.keys():
+        for ood_score, (acc, thresh) in acc_dict[ood].items():
+            print(f'[{ood}, {ood_score}]')
+            print('Accuracy:')
+            print(acc)
+            print('Threshold:')
+            print(thresh)
+            print('')
+            print(f'F1-optimized classification report [{ood}, {ood_score}]:')
+            print(report_dict[ood][ood_score][0])
+            print(report_dict[ood][ood_score][1])
+            print('')
+
 
 else:
     raise NotImplementedError()

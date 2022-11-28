@@ -7,7 +7,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, roc_curve, accuracy_score, f1_score, classification_report, confusion_matrix
 
 import models.transform_layers as TL
 from utils.temperature_scaling import _ECELoss
@@ -146,6 +146,37 @@ def get_auroc(scores_id, scores_ood):
     scores = np.concatenate([scores_id, scores_ood])
     labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
     return roc_auc_score(labels, scores)
+
+def get_accuracy_scores(scores_id, scores_ood):
+    scores = np.concatenate([scores_id, scores_ood])
+    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+    accuracy_scores = []
+    for threshold in thresholds:
+        pred_labels = 1.0*(scores > threshold)
+        accuracy_scores.append(accuracy_score(labels, pred_labels))
+    accuracy_scores = np.array(accuracy_scores)
+    return accuracy_scores, thresholds
+
+def get_classification_report(scores_id, scores_ood):
+    scores = np.concatenate([scores_id, scores_ood])
+    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+    f1_scores = []
+    for threshold in thresholds:
+        pred_labels = 1.0*(scores > threshold)
+        f1_scores.append(f1_score(labels, pred_labels))
+    f1_scores = np.array(f1_scores)
+
+    optimal_idx = np.argmax(f1_scores)
+    threshold = thresholds[optimal_idx]
+    pred_labels = 1.0*(scores > threshold)
+
+    tn, fp, fn, tp = confusion_matrix(labels, pred_labels).ravel()
+    cm = {'TN': tn, 'FP': fp, 'FN': fn, 'TP': tp}
+
+    return classification_report(labels, pred_labels, target_names=['Class 0: OOD', 'Class 1: ID']), cm
+
 
 
 def compute_ood_score(P, model, ood_score, x, simclr_aug=None):

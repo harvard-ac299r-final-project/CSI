@@ -8,7 +8,7 @@ import numpy as np
 
 import models.transform_layers as TL
 from utils.utils import set_random_seed, normalize
-from evals.evals import get_auroc
+from evals.evals import get_auroc, get_accuracy_scores, get_classification_report
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 hflip = TL.HorizontalFlipLayer().to(device)
@@ -18,6 +18,12 @@ def eval_ood_detection(P, model, id_loader, ood_loaders, ood_scores, train_loade
     auroc_dict = dict()
     for ood in ood_loaders.keys():
         auroc_dict[ood] = dict()
+
+    acc_dict = dict()
+    report_dict = dict()
+    for ood in ood_loaders.keys():
+        acc_dict[ood] = dict()
+        report_dict[ood] = dict()
 
     assert len(ood_scores) == 1  # assume single ood_score for simplicity
     ood_score = ood_scores[0]
@@ -88,6 +94,8 @@ def eval_ood_detection(P, model, id_loader, ood_loaders, ood_scores, train_loade
     for ood, feats in feats_ood.items():
         scores_ood[ood] = get_scores(P, feats, ood_score).numpy()
         auroc_dict[ood][ood_score] = get_auroc(scores_id, scores_ood[ood])
+        acc_dict[ood][ood_score] = get_accuracy_scores(scores_id, scores_ood[ood])
+        report_dict[ood][ood_score] = get_classification_report(scores_id, scores_ood[ood])
         if P.one_class_idx is not None:
             one_class_score.append(scores_ood[ood])
 
@@ -101,7 +109,7 @@ def eval_ood_detection(P, model, id_loader, ood_loaders, ood_scores, train_loade
         for ood, scores in scores_ood.items():
             print_score(ood, scores)
 
-    return auroc_dict
+    return auroc_dict, acc_dict, report_dict
 
 
 def get_scores(P, feats_dict, ood_score):
@@ -143,7 +151,7 @@ def get_features(P, data_name, model, loader, interp=False, prefix='',
     # pre-compute features and save to the path
     left = [layer for layer in layers if layer not in feats_dict.keys()]
     if len(left) > 0:
-        _feats_dict = _get_features(P, model, loader, interp, P.dataset == 'imagenet',
+        _feats_dict = _get_features(P, model, loader, interp, P.dataset in ['imagenet', 'bollworms-id'],
                                     simclr_aug, sample_num, layers=left)
 
         for layer, feats in _feats_dict.items():
