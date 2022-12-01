@@ -14,7 +14,7 @@ def train(P, epoch, model, criterion, optimizer, scheduler, loader, logger=None,
           simclr_aug=None, linear=None, linear_optim=None):
 
     assert simclr_aug is not None
-    assert P.sim_lambda == 1.0  # to avoid mistake
+#    assert P.sim_lambda == 1.0  # to avoid mistake
     assert P.K_shift > 1
 
     if logger is None:
@@ -39,7 +39,7 @@ def train(P, epoch, model, criterion, optimizer, scheduler, loader, logger=None,
         check = time.time()
 
         ### SimCLR loss ###
-        if P.dataset not in ['imagenet', 'bollworms-id']:
+        if P.dataset not in ['imagenet', 'bollworms']:
             batch_size = images.size(0)
             images = images.to(device)
             images1, images2 = hflip(images.repeat(2, 1, 1, 1)).chunk(2)  # hflip

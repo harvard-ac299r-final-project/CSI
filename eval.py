@@ -50,13 +50,8 @@ elif P.mode in ['ood', 'ood_pre']:
     print('')
     for ood in acc_dict.keys():
         for ood_score, (acc, thresh) in acc_dict[ood].items():
-            print(f'[{ood}, {ood_score}]')
-            print('Accuracy:')
-            print(acc)
-            print('Threshold:')
-            print(thresh)
+            print(f'F1-optimized classification report [OOD: {ood}, Score: {ood_score}]:')
             print('')
-            print(f'F1-optimized classification report [{ood}, {ood_score}]:')
             print(report_dict[ood][ood_score][0])
             print(report_dict[ood][ood_score][1])
             print('')

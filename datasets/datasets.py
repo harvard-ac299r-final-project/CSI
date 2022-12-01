@@ -123,15 +123,12 @@ def get_transform_imagenet():
 def get_dataset(P, dataset, test_only=False, image_size=None, download=True, eval=False):
     if dataset in ['imagenet', 'cub', 'stanford_dogs', 'flowers102',
                    'places365', 'food_101', 'caltech_256', 'dtd', 
-                   'bollworms-id', 'bollworms-ec', 'bollworms-ood']:
+                   'bollworms', 'bollworms-test-ood', 'bollworms-train-ood']:
         if eval:
             train_transform, test_transform = get_simclr_eval_transform_imagenet(P.ood_samples,
                                                                                  P.resize_factor, P.resize_fix)
         else:
             train_transform, test_transform = get_transform_imagenet()
-
-#    elif dataset in ['bollworms-id', 'bollworms-ec', 'bollworms-ood']:
-#        train_transform, test_transform = get_transform_imagenet()
 
     else:
         train_transform, test_transform = get_transform(image_size=image_size)
@@ -228,34 +225,42 @@ def get_dataset(P, dataset, test_only=False, image_size=None, download=True, eva
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
         test_set = get_subset_with_len(test_set, length=3000, shuffle=True)
 
-    elif dataset == 'bollworms-id':
+    elif dataset == 'bollworms':
         image_size = (256, 256, 3)
         n_classes = 1
 
-        train_dir = os.path.join(DATA_PATH, 'bollworms-id')
+        train_dir = os.path.join(DATA_PATH, 'bollworms-train')
         train_set = datasets.ImageFolder(train_dir, transform=train_transform)
-        test_dir = os.path.join(DATA_PATH, 'bollworms-id')
+        print(f'[{dataset}] Full train set: {len(train_set)}')
+        train_idx = [i for i in range(len(train_set)) if train_set.imgs[i][1] == train_set.class_to_idx['ID']]
+        train_set = Subset(train_set, train_idx)
+        print(f'[{dataset}] Filtered train set (ID): {len(train_set)}')
+
+        test_dir = os.path.join(DATA_PATH, 'bollworms-test')
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
+        print(f'[{dataset}] Full test set: {len(test_set)}')
+        test_idx = [i for i in range(len(test_set)) if test_set.imgs[i][1] == test_set.class_to_idx['ID']]
+        test_set = Subset(test_set, test_idx)
+        print(f'[{dataset}] Filtered test set (ID): {len(test_set)}')
 
-        set_random_seed(0)
 
-        dataset_size = len(train_set)
-        index = np.arange(dataset_size)
-        np.random.shuffle(index)
-
-        train_size = int(0.9*dataset_size)
-        train_index = torch.from_numpy(index[0:train_size])
-        test_index = torch.from_numpy(index[train_size:])
-
-        train_set = Subset(train_set, train_index)
-        test_set = Subset(test_set, test_index)
-        print(f'Bollworms ID: Train={len(train_set)}, Test={len(test_set)}')
-
-    elif dataset == 'bollworms-ood':
+    elif dataset == 'bollworms-test-ood':
         assert test_only and image_size is not None
-        test_dir = os.path.join(DATA_PATH, 'bollworms-ood')
+        test_dir = os.path.join(DATA_PATH, 'bollworms-test')
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
-        print(f'Bollworms OOD: Test={len(test_set)}')
+        print(f'[{dataset}] Full test set: {len(test_set)}')
+        test_idx = [i for i in range(len(test_set)) if test_set.imgs[i][1] == test_set.class_to_idx['OOD']]
+        test_set = Subset(test_set, test_idx)
+        print(f'[{dataset}] Filtered test set (OOD): {len(test_set)}')
+
+    elif dataset == 'bollworms-train-ood':
+        assert test_only and image_size is not None
+        train_dir = os.path.join(DATA_PATH, 'bollworms-train')
+        train_set = datasets.ImageFolder(train_dir, transform=train_transform)
+        print(f'[{dataset}] Full train set: {len(train_set)}')
+        train_idx = [i for i in range(len(train_set)) if train_set.imgs[i][1] == train_set.class_to_idx['OOD']]
+        train_set = Subset(train_set, train_idx)
+        print(f'[{dataset}] Filtered train set (OOD): {len(train_set)}')
 
 
     else:
