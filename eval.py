@@ -19,7 +19,7 @@ elif P.mode in ['ood', 'ood_pre']:
         from evals.ood_pre import eval_ood_detection
 
     with torch.no_grad():
-        auroc_dict, acc_dict, report_dict = eval_ood_detection(P, model, test_loader, ood_test_loader, P.ood_score,
+        auroc_dict, report_dict, logit_auroc_dict = eval_ood_detection(P, model, test_loader, ood_test_loader, P.ood_score,
                                         train_loader=train_loader, simclr_aug=simclr_aug)
 
     if P.one_class_idx is not None:
@@ -47,15 +47,31 @@ elif P.mode in ['ood', 'ood_pre']:
     bests = map('{:.4f}'.format, bests)
     print('\t'.join(bests))
 
-    print('')
-    for ood in acc_dict.keys():
-        for ood_score, (acc, thresh) in acc_dict[ood].items():
-            print(f'F1-optimized classification report [OOD: {ood}, Score: {ood_score}]:')
-            print('')
-            print(report_dict[ood][ood_score][0])
-            print(report_dict[ood][ood_score][1])
-            print('')
+    if P.dataset in ['bollworms', 'bollworms-clean']:
+        print('')
+        print('-'*80)
+        print('')
+        for ood in report_dict.keys():
+            for ood_score, (class_report, conf_matrix) in report_dict[ood].items():
 
+                print(f'F1-optimized classification report [OOD: {ood}, Score: {ood_score}]:')
+                print('')
+                print(class_report)
+
+                per_class_accuracy = conf_matrix.diagonal()/conf_matrix.sum(axis=1)
+                print(f'OOD accuracy: {per_class_accuracy[0]:.3f}')
+                print(f' ID accuracy: {per_class_accuracy[1]:.3f}')
+                print('')
+
+                tn, fp, fn, tp = conf_matrix.ravel()
+                print('Breakdown:', {'TN': tn, 'FP': fp, 'FN': fn, 'TP': tp})
+                print('')
+
+                print(f'AUC: {logit_auroc_dict[ood][ood_score]:.3f}')
+                print('')
+
+                print('-'*80)
+                print('')
 
 else:
     raise NotImplementedError()

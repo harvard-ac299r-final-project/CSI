@@ -123,7 +123,8 @@ def get_transform_imagenet():
 def get_dataset(P, dataset, test_only=False, image_size=None, download=True, eval=False):
     if dataset in ['imagenet', 'cub', 'stanford_dogs', 'flowers102',
                    'places365', 'food_101', 'caltech_256', 'dtd', 
-                   'bollworms', 'bollworms-test-ood', 'bollworms-train-ood']:
+                   'bollworms', 'bollworms-test-ood', 'bollworms-train-ood',
+                   'bollworms-clean', 'bollworms-clean-test-ood', 'bollworms-clean-train-ood']:
         if eval:
             train_transform, test_transform = get_simclr_eval_transform_imagenet(P.ood_samples,
                                                                                  P.resize_factor, P.resize_fix)
@@ -225,42 +226,34 @@ def get_dataset(P, dataset, test_only=False, image_size=None, download=True, eva
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
         test_set = get_subset_with_len(test_set, length=3000, shuffle=True)
 
-    elif dataset == 'bollworms':
+    elif dataset in ['bollworms', 'bollworms-clean']:
         image_size = (256, 256, 3)
         n_classes = 1
 
-        train_dir = os.path.join(DATA_PATH, 'bollworms-train')
+        train_dir = os.path.join(DATA_PATH, f'{dataset}-train')
         train_set = datasets.ImageFolder(train_dir, transform=train_transform)
-        print(f'[{dataset}] Full train set: {len(train_set)}')
         train_idx = [i for i in range(len(train_set)) if train_set.imgs[i][1] == train_set.class_to_idx['ID']]
         train_set = Subset(train_set, train_idx)
-        print(f'[{dataset}] Filtered train set (ID): {len(train_set)}')
 
-        test_dir = os.path.join(DATA_PATH, 'bollworms-test')
+        test_dir = os.path.join(DATA_PATH, f'{dataset}-test')
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
-        print(f'[{dataset}] Full test set: {len(test_set)}')
         test_idx = [i for i in range(len(test_set)) if test_set.imgs[i][1] == test_set.class_to_idx['ID']]
         test_set = Subset(test_set, test_idx)
-        print(f'[{dataset}] Filtered test set (ID): {len(test_set)}')
 
 
-    elif dataset == 'bollworms-test-ood':
+    elif dataset in ['bollworms-test-ood', 'bollworms-clean-test-ood']:
         assert test_only and image_size is not None
-        test_dir = os.path.join(DATA_PATH, 'bollworms-test')
+        test_dir = os.path.join(DATA_PATH, f'{P.dataset}-test')
         test_set = datasets.ImageFolder(test_dir, transform=test_transform)
-        print(f'[{dataset}] Full test set: {len(test_set)}')
         test_idx = [i for i in range(len(test_set)) if test_set.imgs[i][1] == test_set.class_to_idx['OOD']]
         test_set = Subset(test_set, test_idx)
-        print(f'[{dataset}] Filtered test set (OOD): {len(test_set)}')
 
-    elif dataset == 'bollworms-train-ood':
+    elif dataset in ['bollworms-train-ood', 'bollworms-clean-train-ood']:
         assert test_only and image_size is not None
-        train_dir = os.path.join(DATA_PATH, 'bollworms-train')
+        train_dir = os.path.join(DATA_PATH, f'{P.dataset}-train')
         train_set = datasets.ImageFolder(train_dir, transform=train_transform)
-        print(f'[{dataset}] Full train set: {len(train_set)}')
-        train_idx = [i for i in range(len(train_set)) if train_set.imgs[i][1] == train_set.class_to_idx['OOD']]
-        train_set = Subset(train_set, train_idx)
-        print(f'[{dataset}] Filtered train set (OOD): {len(train_set)}')
+        test_idx = [i for i in range(len(train_set)) if train_set.imgs[i][1] == train_set.class_to_idx['OOD']]
+        test_set = Subset(train_set, test_idx)
 
 
     else:

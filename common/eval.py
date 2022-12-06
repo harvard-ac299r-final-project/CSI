@@ -22,7 +22,7 @@ device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
 
 ### Initialize dataset ###
 ood_eval = P.mode == 'ood_pre'
-if (P.dataset in ['imagenet', 'bollworms']) and ood_eval:
+if (P.dataset in ['imagenet', 'bollworms', 'bollworms-clean']) and ood_eval:
     P.batch_size = 1
     P.test_batch_size = 1
 train_set, test_set, image_size, n_classes = get_dataset(P, dataset=P.dataset, eval=ood_eval)
@@ -38,7 +38,7 @@ if P.one_class_idx is not None:
     train_set = get_subclass_dataset(train_set, classes=cls_list[P.one_class_idx])
     test_set = get_subclass_dataset(test_set, classes=cls_list[P.one_class_idx])
 
-kwargs = {'pin_memory': False, 'num_workers': 4}
+kwargs = {'pin_memory': False, 'num_workers': 1}
 
 train_loader = DataLoader(train_set, shuffle=True, batch_size=P.batch_size, **kwargs) # bollworms-train/ID
 test_loader = DataLoader(test_set, shuffle=False, batch_size=P.test_batch_size, **kwargs) # bollworms-test/ID
@@ -51,8 +51,8 @@ if P.ood_dataset is None:
         P.ood_dataset = ['svhn', 'lsun_resize', 'imagenet_resize', 'lsun_fix', 'imagenet_fix', 'cifar100', 'interp']
     elif P.dataset == 'imagenet':
         P.ood_dataset = ['cub', 'stanford_dogs', 'flowers102', 'places365', 'food_101', 'caltech_256', 'dtd', 'pets']
-    elif P.dataset == 'bollworms':
-        P.ood_dataset = ['bollworms-test-ood', 'bollworms-train-ood', 'stanford_dogs', 'flowers102']
+    elif P.dataset in ['bollworms', 'bollworms-clean']:
+        P.ood_dataset = [f'{P.dataset}-test-ood', f'{P.dataset}-train-ood', 'stanford_dogs', 'flowers102']
 
 ood_test_loader = dict()
 for ood in P.ood_dataset:

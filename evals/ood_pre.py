@@ -8,7 +8,10 @@ import numpy as np
 
 import models.transform_layers as TL
 from utils.utils import set_random_seed, normalize
-from evals.evals import get_auroc, get_f1_maximizing_threshold, get_classification_report
+from evals.evals import get_auroc
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, roc_curve, accuracy_score, f1_score, classification_report, confusion_matrix
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 hflip = TL.HorizontalFlipLayer().to(device)
@@ -91,17 +94,50 @@ def eval_ood_detection(P, model, id_loader, ood_loaders, ood_scores, train_loade
         if P.one_class_idx is not None:
             one_class_score.append(scores_ood[ood])
 
-    if P.dataset == 'bollworms':
-        # Find score threshold that maximizes F1 score on train set
+    if P.dataset in ['bollworms', 'bollworms-clean']:
+
         scores_train_id = get_scores(P, feats_train, ood_score).numpy()
-        threshold = get_f1_maximizing_threshold(scores_train_id, scores_ood['bollworms-train-ood'])
+        scores_train_ood = scores_ood[f'{P.dataset}-train-ood']
+        scores_test_id = scores_id
+        scores_test_ood = scores_ood[f'{P.dataset}-test-ood']
+
+        # Save all scores so we can plot their histograms
+        if P.save_score:
+            save_path = f'plot/score_in_{P.dataset}_{ood_score}_{P.suffix}'
+            np.savez(f'{save_path}.npz', 
+                    scores_train_id=scores_train_id, 
+                    scores_train_ood=scores_train_ood,
+                    scores_test_id=scores_test_id, 
+                    scores_test_ood=scores_test_ood,
+                    scores_stanford_dogs=scores_ood['stanford_dogs'],
+                    scores_flowers102=scores_ood['flowers102'])
+
+        # The choice of solver='sag' was forced upon me by lgbfs and liblinear causing segfaults.               
+        logit_model = LogisticRegression(penalty='none', class_weight='balanced', solver='sag') 
+        x_train = np.concatenate([scores_train_id, scores_train_ood]).reshape(-1, 1)
+        y_train = np.concatenate([np.ones_like(scores_train_id), np.zeros_like(scores_train_ood)])
+        logit_model.fit(x_train, y_train)
+
+        scores_train_id_ = logit_model.predict_proba(x_train[y_train == 1])[:, 1]
+        scores_train_ood_ = logit_model.predict_proba(x_train[y_train == 0])[:, 1]
+        threshold = get_f1_maximizing_threshold(scores_train_id_, scores_train_ood_)
 
         # Obtain classification report for each OOD set using this score threshold
-        report_dict = {ood: dict() for ood in ood_loaders.key()}
-        for ood, features in feats_ood.items():
-            report_dict[ood][ood_score] = get_classification_report(scores_id, scores_ood[ood], threshold)
+        logit_auroc_dict = {ood: dict() for ood in ood_loaders.keys()}
+        report_dict = {ood: dict() for ood in ood_loaders.keys()}
+        for ood, scores_test_ood in scores_ood.items():
+            x_test = np.concatenate([scores_test_id, scores_test_ood]).reshape(-1, 1)
+            y_test = np.concatenate([np.ones_like(scores_test_id), np.zeros_like(scores_test_ood)])
+            scores_test_id_ = logit_model.predict_proba(x_test[y_test == 1])[:, 1]
+            scores_test_ood_ = logit_model.predict_proba(x_test[y_test == 0])[:, 1]
+
+            report_dict[ood][ood_score] = get_classification_report(scores_test_id_, scores_test_ood_, threshold)
+            logit_auroc_dict[ood][ood_score] = get_auroc(scores_test_id_, scores_test_ood_) 
+
+
     else:
         report_dict = None
+        logit_auroc_dict = None
 
     if P.one_class_idx is not None:
         one_class_score = np.concatenate(one_class_score)
@@ -113,7 +149,8 @@ def eval_ood_detection(P, model, id_loader, ood_loaders, ood_scores, train_loade
         for ood, scores in scores_ood.items():
             print_score(ood, scores)
 
-    return auroc_dict, report_dict
+
+    return auroc_dict, report_dict, logit_auroc_dict
 
 
 def get_scores(P, feats_dict, ood_score):
@@ -142,6 +179,7 @@ def get_scores(P, feats_dict, ood_score):
 def get_features(P, data_name, model, loader, interp=False, prefix='',
                  simclr_aug=None, sample_num=1, layers=('simclr', 'shift')):
 
+
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
 
@@ -155,7 +193,7 @@ def get_features(P, data_name, model, loader, interp=False, prefix='',
     # pre-compute features and save to the path
     left = [layer for layer in layers if layer not in feats_dict.keys()]
     if len(left) > 0:
-        _feats_dict = _get_features(P, model, loader, interp, P.dataset in ['imagenet', 'bollworms'],
+        _feats_dict = _get_features(P, model, loader, interp, P.dataset in ['imagenet', 'bollworms', 'bollworms-clean'],
                                     simclr_aug, sample_num, layers=left)
 
         for layer, feats in _feats_dict.items():
@@ -168,6 +206,7 @@ def get_features(P, data_name, model, loader, interp=False, prefix='',
 
 def _get_features(P, model, loader, interp=False, imagenet=False, simclr_aug=None,
                   sample_num=1, layers=('simclr', 'shift')):
+
 
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
@@ -250,3 +289,30 @@ def print_score(data_name, scores):
           '{:.4f} +- {:.4f}    '.format(np.mean(scores), np.std(scores)) +
           '    '.join(['q{:d}: {:.4f}'.format(i * 10, quantile[i]) for i in range(11)]))
 
+
+def get_f1_maximizing_threshold(scores_id, scores_ood):
+    scores = np.concatenate([scores_id, scores_ood])
+    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
+    fpr, tpr, thresholds = roc_curve(labels, scores)
+    f1_scores = []
+    for threshold in thresholds:
+        pred_labels = 1.0*(scores > threshold)
+        f1_scores.append(f1_score(labels, pred_labels, average='macro'))
+    f1_scores = np.array(f1_scores)
+    return thresholds[np.argmax(f1_scores)]
+
+
+def get_classification_report(scores_id, scores_ood, threshold):
+    scores = np.concatenate([scores_id, scores_ood])
+    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
+    pred_labels = 1.0*(scores > threshold)
+    class_report = classification_report(labels, pred_labels, digits=3, target_names=['OOD: 0', 'ID: 1'])
+    conf_matrix = confusion_matrix(labels, pred_labels)
+    return class_report, conf_matrix
+
+
+def get_accuracy_score(scores_id, scores_ood, threshold):
+    scores = np.concatenate([scores_id, scores_ood])
+    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
+    pred_labels = 1.0*(scores > threshold)
+    return accuracy_score(labels, pred_labels)

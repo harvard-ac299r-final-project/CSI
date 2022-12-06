@@ -71,8 +71,8 @@ if P.ood_dataset is None:
         P.ood_dataset = ['svhn', 'lsun_resize', 'imagenet_resize', 'lsun_fix', 'imagenet_fix', 'cifar100', 'interp']
     elif P.dataset == 'imagenet':
         P.ood_dataset = ['cub', 'stanford_dogs', 'flowers102']
-    elif P.dataset == 'bollworms':
-        P.ood_dataset = ['bollworms-test-ood']
+    elif P.dataset in ['bollworms', 'bollworms-clean']:
+        P.ood_dataset = [f'{P.dataset}-test-ood']
 
 ood_test_loader = dict()
 for ood in P.ood_dataset:
